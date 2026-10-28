@@ -15,6 +15,12 @@ Equipo: Sergio Sirena Málaga · Diego Zeballos Cartagena · Nikolas Zuñiga Mon
 | Pagos (Mercado Pago / Yape) y escrow | Pendiente |
 | Panel web B2B (Next.js) y lector en puerta | Pendiente |
 
+## Capturas
+
+| Explorar | Mi Entrada | 30 s después |
+|---|---|---|
+| ![Explorar](docs/screenshots/app-explorar.png) | ![QR](docs/screenshots/app-entrada-1.png) | ![QR rotado](docs/screenshots/app-entrada-2.png) |
+
 ## Estructura
 
 ```
