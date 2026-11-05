@@ -18,7 +18,6 @@ function sign(seed, ticketId, deviceId, window) {
     .slice(0, 16);
 }
 
-// Token que va dentro del QR: ticketId.ventana.firma
 export function generateToken(ticket, now = Date.now()) {
   const window = currentWindow(now);
   const signature = sign(ticket.seed, ticket.id, ticket.deviceId, window);
@@ -26,10 +25,9 @@ export function generateToken(ticket, now = Date.now()) {
   return { token: `${ticket.id}.${window}.${signature}`, secondsLeft };
 }
 
-// Acepta la ventana actual y la anterior para tolerar desfases de reloj
-export function verifyToken(token, findTicket, now = Date.now()) {
+export async function verifyToken(token, findTicket, now = Date.now()) {
   const [ticketId, windowStr, signature] = String(token).split('.');
-  const ticket = findTicket(ticketId);
+  const ticket = await findTicket(ticketId);
   if (!ticket) return { valid: false, reason: 'Entrada no existe' };
   if (ticket.used) return { valid: false, reason: 'Entrada ya fue usada' };
 

@@ -1,12 +1,15 @@
-// Datos de ejemplo mientras conectamos PostgreSQL (siguiente sprint)
-export const events = [
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+const events = [
   {
     id: 'ev-001',
     name: 'Noche Electrónica Vol. 8',
     venue: 'Teatro Montana',
     city: 'Arequipa',
-    date: '2026-11-07T22:00:00-05:00',
     category: 'Música',
+    date: new Date('2026-11-07T22:00:00-05:00'),
     price: 35,
     stock: 120,
   },
@@ -15,8 +18,8 @@ export const events = [
     name: 'Latin Beats Festival',
     venue: 'Kefren',
     city: 'Arequipa',
-    date: '2026-11-14T21:00:00-05:00',
     category: 'Música',
+    date: new Date('2026-11-14T21:00:00-05:00'),
     price: 35,
     stock: 0,
   },
@@ -25,8 +28,8 @@ export const events = [
     name: 'Stand-up: Risas en el Centro',
     venue: 'DaCapo',
     city: 'Arequipa',
-    date: '2026-11-21T20:30:00-05:00',
     category: 'Comedia',
+    date: new Date('2026-11-21T20:30:00-05:00'),
     price: 25,
     stock: 60,
   },
@@ -35,11 +38,24 @@ export const events = [
     name: 'Rock en el Misti',
     venue: 'Estadio Melgar',
     city: 'Arequipa',
-    date: '2026-12-05T19:00:00-05:00',
     category: 'Música',
+    date: new Date('2026-12-05T19:00:00-05:00'),
     price: 60,
     stock: 300,
   },
 ];
 
-export const tickets = new Map();
+async function main() {
+  for (const e of events) {
+    await prisma.event.upsert({
+      where: { id: e.id },
+      update: e,
+      create: e,
+    });
+  }
+  console.log('Seed: 4 eventos creados');
+}
+
+main()
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(() => prisma.$disconnect());

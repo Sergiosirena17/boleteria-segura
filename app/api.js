@@ -24,3 +24,6 @@ export const buyTicket = (eventId, holder) =>
 
 export const getQr = (ticketId) =>
   request(`/tickets/${ticketId}/qr?deviceId=${DEVICE_ID}`);
+
+export const getMyTickets = () =>
+  request(`/tickets?deviceId=${DEVICE_ID}`);

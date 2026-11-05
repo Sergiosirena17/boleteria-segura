@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lector en Puerta - Boletería Segura</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #14241C;
+      color: #F4F6F4;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      padding: 20px;
+      text-align: center;
+      background: #2E6B4F;
+      width: 100%;
+    }
+    header h1 { font-size: 20px; font-weight: 700; }
+    header p { font-size: 14px; color: #CFE8DB; margin-top: 4px; }
+    #reader {
+      width: 100%;
+      max-width: 400px;
+      margin-top: 20px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    #result {
+      margin: 20px;
+      padding: 24px;
+      border-radius: 16px;
+      text-align: center;
+      width: calc(100% - 40px);
+      max-width: 400px;
+      display: none;
+    }
+    #result.valid {
+      display: block;
+      background: #1B4D37;
+      border: 2px solid #4CAF50;
+    }
+    #result.invalid {
+      display: block;
+      background: #4D1B1B;
+      border: 2px solid #E53935;
+    }
+    #result h2 { font-size: 28px; margin-bottom: 8px; }
+    #result p { font-size: 16px; color: #CFE8DB; }
+    .icon { font-size: 48px; margin-bottom: 12px; }
+    #manual {
+      margin: 20px;
+      width: calc(100% - 40px);
+      max-width: 400px;
+    }
+    #manual input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #33463C;
+      background: #0E1A14;
+      color: #F4F6F4;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    #manual button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 8px;
+      border: none;
+      background: #2E6B4F;
+      color: #F4F6F4;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #manual button:active { background: #255A42; }
+    .separator {
+      color: #6B7A73;
+      font-size: 14px;
+      margin: 16px 0;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Lector en Puerta</h1>
+    <p>Escanea el QR de la entrada</p>
+  </header>
+
+  <div id="reader"></div>
+  <div id="result">
+    <div class="icon" id="resultIcon"></div>
+    <h2 id="resultTitle"></h2>
+    <p id="resultText"></p>
+  </div>
+
+  <div id="manual">
+    <div class="separator">o ingresa el código manualmente</div>
+    <input type="text" id="tokenInput" placeholder="Pega el token del QR aquí">
+    <button onclick="validateManual()">Validar</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    const API_URL = localStorage.getItem('apiUrl') || 'http://localhost:3000';
+
+    async function validate(token) {
+      const resultDiv = document.getElementById('result');
+      const icon = document.getElementById('resultIcon');
+      const title = document.getElementById('resultTitle');
+      const text = document.getElementById('resultText');
+
+      try {
+        const res = await fetch(API_URL + '/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        const data = await res.json();
+
+        if (data.valid) {
+          resultDiv.className = 'valid';
+          icon.textContent = '✅';
+          title.textContent = 'ENTRADA VÁLIDA';
+          text.textContent = 'Titular: ' + data.holder;
+        } else {
+          resultDiv.className = 'invalid';
+          icon.textContent = '❌';
+          title.textContent = 'NO VÁLIDO';
+          text.textContent = data.reason;
+        }
+      } catch (err) {
+        resultDiv.className = 'invalid';
+        icon.textContent = '⚠️';
+        title.textContent = 'ERROR';
+        text.textContent = 'No se pudo conectar con el servidor';
+      }
+
+      setTimeout(() => { resultDiv.style.display = 'none'; }, 4000);
+    }
+
+    function validateManual() {
+      const input = document.getElementById('tokenInput');
+      if (input.value.trim()) {
+        validate(input.value.trim());
+        input.value = '';
+      }
+    }
+
+    const scanner = new Html5Qrcode('reader');
+    scanner.start(
+      { facingMode: 'environment' },
+      { fps: 5, qrbox: { width: 250, height: 250 } },
+      (text) => {
+        scanner.pause();
+        validate(text).then(() => setTimeout(() => scanner.resume(), 3000));
+      },
+    ).catch(() => {
+      document.getElementById('reader').innerHTML =
+        '<p style="padding:20px;text-align:center;color:#6B7A73">Cámara no disponible. Usa la entrada manual.</p>';
+    });
+  </script>
+</body>
+</html>
