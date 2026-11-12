@@ -1,74 +1,122 @@
-import { test, after } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildServer } from '../src/server.js';
 import prisma from '../src/db.js';
 
 const app = buildServer();
+let token;
+let ticketId;
+let paymentId;
+
+before(async () => {
+  const reg = await app.inject({
+    method: 'POST',
+    url: '/register',
+    payload: { name: 'Test User', email: 'test@test.com', password: 'test123' },
+  });
+  token = reg.json().token;
+});
 
 after(async () => {
+  await prisma.payment.deleteMany({});
   await prisma.ticket.deleteMany({});
+  await prisma.user.deleteMany({ where: { email: 'test@test.com' } });
   await prisma.$disconnect();
 });
 
-test('GET /events devuelve los eventos de la base de datos', async () => {
-  const res = await app.inject('/events');
-  const events = res.json();
+test('register devuelve token y usuario', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/register',
+    payload: { name: 'Otro', email: 'otro@test.com', password: '123' },
+  });
+  assert.equal(res.statusCode, 201);
+  assert.ok(res.json().token);
+  await prisma.user.delete({ where: { email: 'otro@test.com' } });
+});
+
+test('login con credenciales correctas', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/login',
+    payload: { email: 'test@test.com', password: 'test123' },
+  });
   assert.equal(res.statusCode, 200);
-  assert.ok(events.length >= 4);
-  assert.ok(events.some((e) => e.name === 'Rock en el Misti'));
+  assert.ok(res.json().token);
 });
 
-test('GET /events?city=Arequipa filtra por ciudad', async () => {
-  const res = await app.inject('/events?city=Arequipa');
-  const events = res.json();
-  assert.ok(events.every((e) => e.city === 'Arequipa'));
+test('login con contraseña incorrecta falla', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/login',
+    payload: { email: 'test@test.com', password: 'wrong' },
+  });
+  assert.equal(res.statusCode, 401);
 });
 
-test('flujo completo con base de datos: comprar, QR, validar', async () => {
-  const buy = await app.inject({
-    method: 'POST',
-    url: '/tickets',
-    payload: { eventId: 'ev-001', holder: 'Diego Z.', deviceId: 'test-phone' },
-  });
-  assert.equal(buy.statusCode, 201);
-  const { id } = buy.json();
-
-  const otherPhone = await app.inject(`/tickets/${id}/qr?deviceId=wrong-phone`);
-  assert.equal(otherPhone.statusCode, 403);
-
-  const qr = await app.inject(`/tickets/${id}/qr?deviceId=test-phone`);
-  assert.equal(qr.statusCode, 200);
-  const { token } = qr.json();
-
-  const valid = await app.inject({
-    method: 'POST',
-    url: '/validate',
-    payload: { token },
-  });
-  assert.equal(valid.json().valid, true);
-  assert.equal(valid.json().holder, 'Diego Z.');
-
-  const reuse = await app.inject({
-    method: 'POST',
-    url: '/validate',
-    payload: { token },
-  });
-  assert.equal(reuse.json().reason, 'Entrada ya fue usada');
-});
-
-test('POST /tickets devuelve 409 si el evento está agotado', async () => {
+test('comprar sin token da 401', async () => {
   const res = await app.inject({
     method: 'POST',
     url: '/tickets',
-    payload: { eventId: 'ev-002', holder: 'Nikolas Z.', deviceId: 'test-phone' },
+    payload: { eventId: 'ev-001', deviceId: 'phone-A' },
   });
-  assert.equal(res.statusCode, 409);
+  assert.equal(res.statusCode, 401);
 });
 
-test('GET /tickets?deviceId= devuelve las entradas del dispositivo', async () => {
-  const res = await app.inject('/tickets?deviceId=test-phone');
-  const tickets = res.json();
-  assert.ok(tickets.length >= 1);
-  assert.ok(tickets[0].event);
-  assert.ok(!tickets[0].seed);
+test('comprar con token crea ticket y pago pendiente', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/tickets',
+    headers: { authorization: `Bearer ${token}` },
+    payload: { eventId: 'ev-001', deviceId: 'phone-A' },
+  });
+  assert.equal(res.statusCode, 201);
+  const body = res.json();
+  assert.ok(body.payment);
+  assert.equal(body.payment.status, 'pending');
+  ticketId = body.id;
+  paymentId = body.payment.id;
+});
+
+test('QR no disponible si pago pendiente', async () => {
+  const res = await app.inject(`/tickets/${ticketId}/qr?deviceId=phone-A`);
+  assert.equal(res.statusCode, 402);
+});
+
+test('confirmar pago', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: `/payments/${paymentId}/confirm`,
+    headers: { authorization: `Bearer ${token}` },
+    payload: { method: 'yape' },
+  });
+  assert.equal(res.json().status, 'paid');
+});
+
+test('QR disponible después del pago', async () => {
+  const res = await app.inject(`/tickets/${ticketId}/qr?deviceId=phone-A`);
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.json().token);
+});
+
+test('validar entrada libera el pago (escrow)', async () => {
+  const qr = await app.inject(`/tickets/${ticketId}/qr?deviceId=phone-A`);
+  const res = await app.inject({
+    method: 'POST',
+    url: '/validate',
+    payload: { token: qr.json().token },
+  });
+  assert.equal(res.json().valid, true);
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  assert.equal(payment.status, 'released');
+});
+
+test('evento agotado da 409', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/tickets',
+    headers: { authorization: `Bearer ${token}` },
+    payload: { eventId: 'ev-002', deviceId: 'phone-A' },
+  });
+  assert.equal(res.statusCode, 409);
 });

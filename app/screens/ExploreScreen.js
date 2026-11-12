@@ -13,9 +13,10 @@ export default function ExploreScreen({ onBought }) {
   }, []);
 
   async function buy(event) {
+    setError(null);
     try {
-      const ticket = await buyTicket(event.id, 'Sergio S.');
-      onBought({ ...ticket, event });
+      const ticket = await buyTicket(event.id);
+      onBought(ticket);
     } catch (e) {
       setError(e.message);
     }

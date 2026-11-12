@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -47,13 +48,20 @@ const events = [
 
 async function main() {
   for (const e of events) {
-    await prisma.event.upsert({
-      where: { id: e.id },
-      update: e,
-      create: e,
-    });
+    await prisma.event.upsert({ where: { id: e.id }, update: e, create: e });
   }
-  console.log('Seed: 4 eventos creados');
+
+  const demo = await prisma.user.upsert({
+    where: { email: 'sergio@demo.com' },
+    update: {},
+    create: {
+      name: 'Sergio S.',
+      email: 'sergio@demo.com',
+      password: await bcrypt.hash('123456', 10),
+    },
+  });
+
+  console.log('Seed: 4 eventos + usuario demo (sergio@demo.com / 123456)');
 }
 
 main()

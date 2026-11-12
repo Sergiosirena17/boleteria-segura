@@ -7,6 +7,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model User {
+  id       String   @id @default(cuid())
+  name     String
+  email    String   @unique
+  password String
+  tickets  Ticket[]
+}
+
 model Event {
   id       String   @id @default(cuid())
   name     String
@@ -27,5 +35,18 @@ model Ticket {
   used      Boolean  @default(false)
   event     Event    @relation(fields: [eventId], references: [id])
   eventId   String
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  payment   Payment?
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  amount    Float
+  method    String   @default("yape")
+  status    String   @default("pending")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId  String   @unique
   createdAt DateTime @default(now())
 }

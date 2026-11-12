@@ -8,13 +8,14 @@ export default function TicketScreen({ ticket, onBack }) {
   const [token, setToken] = useState(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
+  const isPaid = ticket?.payment?.status === 'paid' || ticket?.payment?.status === 'released';
+
   useEffect(() => {
-    if (!ticket || secondsLeft > 0) return;
-    getQr(ticket.id).then((qr) => {
-      setToken(qr.token);
-      setSecondsLeft(qr.secondsLeft);
-    });
-  }, [ticket, secondsLeft]);
+    if (!ticket || !isPaid || secondsLeft > 0) return;
+    getQr(ticket.id)
+      .then((qr) => { setToken(qr.token); setSecondsLeft(qr.secondsLeft); })
+      .catch(() => {});
+  }, [ticket, isPaid, secondsLeft]);
 
   useEffect(() => {
     const timer = setInterval(() => setSecondsLeft((s) => Math.max(s - 1, 0)), 1000);
@@ -41,6 +42,10 @@ export default function TicketScreen({ ticket, onBack }) {
         {ticket.used ? (
           <View style={styles.usedBox}>
             <Text style={styles.usedText}>ENTRADA YA USADA</Text>
+          </View>
+        ) : !isPaid ? (
+          <View style={styles.pendingBox}>
+            <Text style={styles.pendingText}>PAGO PENDIENTE</Text>
           </View>
         ) : (
           <>
@@ -102,6 +107,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   usedText: { color: '#E65100', fontWeight: '700', fontSize: 16 },
+  pendingBox: {
+    backgroundColor: '#FFF8E1',
+    padding: 20,
+    borderRadius: 12,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  pendingText: { color: '#F57F17', fontWeight: '700', fontSize: 16 },
   details: { alignSelf: 'stretch', backgroundColor: '#fff', borderRadius: 12, padding: 14, gap: 10 },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   muted: { color: colors.muted },
